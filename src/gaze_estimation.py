@@ -17,8 +17,10 @@ class ModelGazeEstimation:
         self.device=device
         self.extensions=extensions
 
+        self.plugin = IECore()
+
         try:
-            self.model=IENetwork(self.model_structure, self.model_weights)
+            self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
 
@@ -26,19 +28,34 @@ class ModelGazeEstimation:
         '''
         Loading model in core
         '''
-        self.plugin = IECore()
+        self.check_model()
         if self.extensions:
             self.plugin.add_extension(self.extensions,self.device)
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
-    def predict(self, left_eye, right_eye, head_pose):
+    def check_model(self):
+        '''
+        Checking for unsupported layers
+        '''
+        # Check for any unsupported layers, and let the user
+        # know if anything is missing. Exit the program, if so
+        supported_layers = self.plugin.query_network(network=self.model, device_name=self.device)
+        unsupported_layers = [l for l in self.model.layers.keys() if l not in supported_layers]
+        if len(unsupported_layers) != 0:
+            print("Unsupported layers found: {}".format(unsupported_layers))
+            print("Check whether extensions are available to add to IECore.")
+            exit(1)
+
+    def predict(self, left_eye, right_eye, head_pose, eyes_center, origin_image):
         '''
         Estimating gaze from eyes and head pose
 
         :left_eye: image of left eye
         :right_eye: image of right eye
         :head_pose: (y,p,r) of face
-        :return: gaze: array of (y,p,r)
+        :origin_image: image to visualize output
+        :return: gaze: array of (x,y,z)
+                 preprocessed_image: image with drawn gaze vector
         '''
         left_eye_p, right_eye_p = self.preprocess_input(left_eye), self.preprocess_input(right_eye)
 
@@ -47,7 +64,11 @@ class ModelGazeEstimation:
         result = self.exec_network.requests[0]
 
         gaze = result.outputs['gaze_vector']
-        return gaze
+
+        #DEBUG draw (x,y,z) value of gaze_vector
+        preprocessed_image = self.draw_output(gaze, eyes_center, origin_image)
+
+        return gaze, preprocessed_image
 
     def preprocess_input(self, image):
         '''
@@ -59,3 +80,23 @@ class ModelGazeEstimation:
         prepo = prepo.transpose((2,0,1))
         prepo = prepo.reshape(1,c,h,w)
         return prepo
+
+    def draw_output(self, gaze_vector, eyes_center, image):
+        '''
+        Drawing gaze_vector
+        '''
+        gaze = gaze_vector[0].tolist()
+        text = 'gaze x= {:.1f}, y= {:.1f}, z= {:.1f}'.format(gaze[0], gaze[1], gaze[2])
+        cv2.putText(image, text, (50, 80),
+        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,0,0), 2)
+
+        norm = 200
+        left_eye_center = eyes_center[0],eyes_center[1]
+        left_gaze_point = (int(gaze[0]*norm+left_eye_center[0]), int(gaze[1]*norm*(-1)+left_eye_center[1]))
+        right_eye_center = eyes_center[2],eyes_center[3]
+        right_gaze_point = (int(gaze[0]*norm+right_eye_center[0]), int(gaze[1]*norm*(-1)+right_eye_center[1]))
+
+        cv2.arrowedLine(image, left_eye_center , left_gaze_point, (0,0,255), 2)
+        cv2.arrowedLine(image, right_eye_center , right_gaze_point, (0,0,255), 2)
+
+        return image

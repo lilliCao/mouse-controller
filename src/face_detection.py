@@ -18,8 +18,10 @@ class ModelFaceDetection:
         self.extensions=extensions
         self.threshold=threshold
 
+        self.plugin = IECore()
+
         try:
-            self.model=IENetwork(self.model_structure, self.model_weights)
+            self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
 
@@ -32,10 +34,23 @@ class ModelFaceDetection:
         '''
         Loading model in core
         '''
-        self.plugin = IECore()
+        self.check_model()
         if self.extensions:
             self.plugin.add_extension(self.extensions,self.device)
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
+
+    def check_model(self):
+        '''
+        Checking for unsupported layers
+        '''
+        # Check for any unsupported layers, and let the user
+        # know if anything is missing. Exit the program, if so
+        supported_layers = self.plugin.query_network(network=self.model, device_name=self.device)
+        unsupported_layers = [l for l in self.model.layers.keys() if l not in supported_layers]
+        if len(unsupported_layers) != 0:
+            print("Unsupported layers found: {}".format(unsupported_layers))
+            print("Check whether extensions are available to add to IECore.")
+            exit(1)
 
     def predict(self, image):
         '''
@@ -43,6 +58,7 @@ class ModelFaceDetection:
 
         :image: frame to predict
         :return: face: cropped face
+                 x,y: start coordinate of cropped face
                  preprocessed_image: image with drawn bounding box
         '''
         preprocessed_input = self.preprocess_input(image)
@@ -62,7 +78,7 @@ class ModelFaceDetection:
         # Detect more than 1 face -> don't process further
         if len(coords)>1:
             preprocessed_image = self.draw_output(coords, image)
-            return None, preprocessed_image
+            return None, (None,None), preprocessed_image
 
         # convert np.float32 to int
         coords_float = coords[0].tolist()
@@ -70,11 +86,11 @@ class ModelFaceDetection:
         face = image[y:y_end,x:x_end].copy()
         preprocessed_image = self.draw_output(coords, image)
 
-        return face, preprocessed_image
+        return face, (x,y), preprocessed_image
 
     def draw_output(self, coords, image):
         '''
-        Drawing rectangles around detected people
+        Drawing rectangles around detected faces
         '''
         for coord in coords:
             (startX, startY, endX, endY) = coord

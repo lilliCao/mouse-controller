@@ -16,8 +16,10 @@ class ModelHeadPoseEstimation:
         self.device=device
         self.extensions=extensions
 
+        self.plugin = IECore()
+
         try:
-            self.model=IENetwork(self.model_structure, self.model_weights)
+            self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
 
@@ -28,29 +30,45 @@ class ModelHeadPoseEstimation:
         '''
         Loading model in core
         '''
-        self.plugin = IECore()
+        self.check_model()
         if self.extensions:
             self.plugin.add_extension(self.extensions,self.device)
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
-    def predict(self, image):
+    def check_model(self):
+        '''
+        Checking for unsupported layers
+        '''
+        # Check for any unsupported layers, and let the user
+        # know if anything is missing. Exit the program, if so
+        supported_layers = self.plugin.query_network(network=self.model, device_name=self.device)
+        unsupported_layers = [l for l in self.model.layers.keys() if l not in supported_layers]
+        if len(unsupported_layers) != 0:
+            print("Unsupported layers found: {}".format(unsupported_layers))
+            print("Check whether extensions are available to add to IECore.")
+            exit(1)
+
+    def predict(self, face, origin_image):
         '''
         Estimating pose in face
 
-        :image: face to predict
+        :face: face to predict
+        :origin_image: original image
         :return: pose: array of (y,p,r)
                  preprocessed_image: image with drawn head pose
         '''
-        preprocessed_input = self.preprocess_input(image)
+        preprocessed_input = self.preprocess_input(face)
 
         self.exec_network.infer({self.input_name:preprocessed_input})
 
         result = self.exec_network.requests[0]
 
-        pose = np.stack((result.outputs['angle_y_fc'][0],result.outputs['angle_p_fc'][0],result.outputs['angle_r_fc'][0]), axis=1)
+        pose = np.stack((result.outputs['angle_y_fc'][0],
+                         result.outputs['angle_p_fc'][0],
+                         result.outputs['angle_r_fc'][0]), axis=1)
 
         #DEBUG draw (y,p,r) value in face
-        preprocessed_image = self.draw_output(pose, image)
+        preprocessed_image = self.draw_output(pose, origin_image)
 
         return pose, preprocessed_image
 
@@ -59,15 +77,9 @@ class ModelHeadPoseEstimation:
         Drawing head pose
         '''
         pose = pose_out[0].tolist()
-        text_y = 'y= {:.2f}'.format(pose[0])
-        text_p = 'p= {:.2f}'.format(pose[1])
-        text_r = 'r= {:.2f}'.format(pose[2])
-        cv2.putText(image, text_y, (15, 15),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
-        cv2.putText(image, text_p, (15, 35),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
-        cv2.putText(image, text_r, (15, 55),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
+        text = 'head pose y= {:.1f}, p= {:.1f}, r= {:.1f}'.format(pose[0], pose[1], pose[2])
+        cv2.putText(image, text, (50, 50),
+        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,0,0), 2)
         return image
 
     def preprocess_input(self, image):

@@ -9,6 +9,17 @@ import cv2
 import os
 import numpy as np
 
+SUPPORTED_VIDEO_FORMAT = [".mp4"]
+
+def support_video_format(video):
+    '''
+    Check if the given input image format is supported
+    '''
+    for v in SUPPORTED_VIDEO_FORMAT:
+        if video.endswith(v):
+            return True
+    return False
+
 def main(args):
     # get all arguments
     model_face=args.model_face
@@ -21,8 +32,8 @@ def main(args):
     output_path=args.output_path
     face_confidence=args.threshold_face_detection
 
-    # initialize models
-    mouse_controller=MouseController('high', 'slow')
+    # initialize models and mouse controller
+    mouse_controller=MouseController('high', 'medium')
     face_detector= ModelFaceDetection(model_name=model_face, device=device, extensions=extensions, threshold=face_confidence)
     landmark_detector= ModelLandmarksDetection(model_name=model_landmark)
     pose_estimator=ModelHeadPoseEstimation(model_name=model_pose)
@@ -34,7 +45,14 @@ def main(args):
     gaze_estimator.load_model()
 
     # get input
-    feed=InputFeeder(input_type='video', input_file=video_file)
+    input_type = 'video'
+    if video_file=='cam':
+        input_type = 'cam'
+    elif not support_video_format(video_file):
+        print ('Unsupported input format! Please use only video file or cam as input')
+        exit(-1)
+
+    feed=InputFeeder(input_type=input_type, input_file=video_file)
     feed.load_data()
     initial_w = int(feed.getCap().get(cv2.CAP_PROP_FRAME_WIDTH))
     initial_h = int(feed.getCap().get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -44,28 +62,39 @@ def main(args):
     print("Video size = {}x{}".format(initial_h, initial_w))
 
     for batch in feed.next_batch():
-        face, image = face_detector.predict(batch)
+        face, coord, image = face_detector.predict(batch)
+        pose, image = pose_estimator.predict(face.copy(), image)
+        eyes, eyes_center, image = landmark_detector.predict(face.copy(), coord, image)
+        gaze, image = gaze_estimator.predict(eyes[0], eyes[1], pose, eyes_center, image)
         out_video.write(image.copy())
-        pose, _= pose_estimator.predict(face.copy())
-        eyes, _= landmark_detector.predict(face.copy())
-        gaze = gaze_estimator.predict(eyes[0], eyes[1], pose)
-        mouse_controller.move(gaze[0][0], gaze[0][1])
-        print (gaze)
+        #mouse_controller.move(gaze[0][0], gaze[0][1])
 
     out_video.release()
     feed.close()
+    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
-    parser.add_argument('--model_face', required=True)
-    parser.add_argument('--model_landmark', required=True)
-    parser.add_argument('--model_pose', required=True)
-    parser.add_argument('--model_gaze', required=True)
-    parser.add_argument('--device', default='CPU')
-    parser.add_argument('--threshold_face_detection', default=0.5)
-    parser.add_argument('--video', default=None)
-    parser.add_argument('--extensions', default=None)
-    parser.add_argument('--output_path', default='/results')
+    parser.add_argument('--model_face', required=True, type=str, help='Path to model of face detection')
+    parser.add_argument('--model_landmark', required=True, type=str, help='Path to model of landmarks detection')
+    parser.add_argument('--model_pose', required=True, type=str, help='Path to model of pose estimation')
+    parser.add_argument('--model_gaze', required=True, type=str, help='Path to model of gaze estimation')
+    parser.add_argument('--device', default='CPU', type=str,
+                                    help='Specify the target device to infer on: '
+                                         'CPU, GPU, FPGA or MYRIAD is acceptable. Sample '
+                                         'will look for a suitable plugin for device '
+                                         'specified (CPU by default)')
+    parser.add_argument('--threshold_face_detection', default=0.5, type=float,
+                                            help='Probability threshold for detections filtering of face detection'
+                                                 '(0.5 by default)')
+    parser.add_argument('--video', default=None, type=str,
+                                   help='Path to video file or cam if using camera')
+    parser.add_argument('--extensions', default=None, type=str,
+                                        help='MKLDNN (CPU)-targeted custom layers.'
+                                             'Absolute path to a shared library with the'
+                                             'kernels impl.')
+    parser.add_argument('--output_path', default='/results',
+                                         help='Path to write output video (/results by default)')
 
     args=parser.parse_args()
 

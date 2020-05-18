@@ -17,8 +17,10 @@ class ModelLandmarksDetection:
         self.device=device
         self.extensions=extensions
 
+        self.plugin = IECore()
+
         try:
-            self.model=IENetwork(self.model_structure, self.model_weights)
+            self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
 
@@ -31,41 +33,57 @@ class ModelLandmarksDetection:
         '''
         Loading model in core
         '''
-        self.plugin = IECore()
+        self.check_model()
         if self.extensions:
             self.plugin.add_extension(self.extensions,self.device)
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
-    def predict(self, image):
+    def check_model(self):
+        '''
+        Checking for unsupported layers
+        '''
+        # Check for any unsupported layers, and let the user
+        # know if anything is missing. Exit the program, if so
+        supported_layers = self.plugin.query_network(network=self.model, device_name=self.device)
+        unsupported_layers = [l for l in self.model.layers.keys() if l not in supported_layers]
+        if len(unsupported_layers) != 0:
+            print("Unsupported layers found: {}".format(unsupported_layers))
+            print("Check whether extensions are available to add to IECore.")
+            exit(1)
+
+    def predict(self, face, coord, origin_image):
         '''
         Detecting landmarks in face
 
         :image: face to predict
+        :coord: start coordinate of the detected face in the origin_image
+        :origin_image: original image
         :return: eyes: right and left eye
-                 preprocessed_image: face with detected landmarks
+                 landmarks[0:4]: center of right and left eye
+                 preprocessed_image: image with detected landmarks
         '''
-        preprocessed_input = self.preprocess_input(image)
+        preprocessed_input = self.preprocess_input(face)
 
         self.exec_network.infer({self.input_name:preprocessed_input})
 
         result = self.exec_network.requests[0]
 
         landmarks = result.outputs[self.output_name][0].flatten().tolist()
-        height, width = image.shape[:2]
+        height, width = face.shape[:2]
         for i in range(len(landmarks)):
             if (i%2==0):
-                landmarks[i] = landmarks[i]*width
+                landmarks[i] = (int) (landmarks[i]*width + coord[0])
             else:
-                landmarks[i] = landmarks[i]*height
+                landmarks[i] = (int) (landmarks[i]*height + coord[1])
 
         #DEBUG drawing landmarks
-        preprocessed_image, eyes = self.draw_output(landmarks, image)
+        preprocessed_image, eyes = self.draw_output(landmarks, origin_image)
 
-        return eyes, preprocessed_image
+        return eyes, landmarks[0:4], preprocessed_image
 
     def draw_output(self, output, image):
         '''
-        Drawing circle around detected landmarks
+        Drawing circle around detected landmarks and rectangle around eyes
         '''
         landmarks = [int(i) for i in output]
         (x_lefteye, y_lefteye) = landmarks[0:2]
@@ -73,8 +91,11 @@ class ModelLandmarksDetection:
         (x_nose, y_nose) = landmarks[4:6]
         (x_leftcorner, y_leftcorner) = landmarks[6:8]
         (x_rightcorner, y_rightcorner) = landmarks[8:10]
-        r=20
 
+        r=25
+
+        # in case the face is too near the border
+        # which leads the the error if the modified coord is negative or bigger than width/height, set them to 0 or width/height corresponding
         height, width = image.shape[:2]
         cut_y_lefteye_start=y_lefteye-r if (y_lefteye-r)>0 else 0
         cut_y_lefteye_end=y_lefteye+r if (y_lefteye+r)<height else height
