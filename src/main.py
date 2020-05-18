@@ -42,19 +42,22 @@ def main(args):
         print('Please setup mouse precision and speed correctly!')
         exit(1)
 
+    start = time.time()
     face_detector= ModelFaceDetection(model_name=model_face, device=device, extensions=extensions, threshold=face_confidence)
-    landmark_detector= ModelLandmarksDetection(model_name=model_landmark)
-    pose_estimator=ModelHeadPoseEstimation(model_name=model_pose)
-    gaze_estimator=ModelGazeEstimation(model_name=model_gaze)
-
     face_detector.load_model()
-    print ('...Successfully loading face detection model')
+    print ('...Successfully loading face detection model in {:.2f}ms'.format(time.time() -start))
+    start = time.time()
+    landmark_detector= ModelLandmarksDetection(model_name=model_landmark)
     landmark_detector.load_model()
-    print ('...Successfully loading landmarks detection model')
+    print ('...Successfully loading landmarks detection model in {:.2f}ms'.format(time.time() -start))
+    start = time.time()
+    pose_estimator=ModelHeadPoseEstimation(model_name=model_pose)
     pose_estimator.load_model()
-    print ('...Successfully loading head pose estimation model')
+    print ('...Successfully loading head pose estimation model in {:.2f}ms'.format(time.time() -start))
+    start = time.time()
+    gaze_estimator=ModelGazeEstimation(model_name=model_gaze)
     gaze_estimator.load_model()
-    print ('...Successfully loading gaze estimation model')
+    print ('...Successfully loading gaze estimation model in {:.2f}s'.format(time.time() -start))
 
     # get input
     print('Getting input data')
@@ -71,7 +74,8 @@ def main(args):
     initial_h = int(feed.getCap().get(cv2.CAP_PROP_FRAME_HEIGHT))
     video_len = int(feed.getCap().get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(feed.getCap().get(cv2.CAP_PROP_FPS))
-    out_video = cv2.VideoWriter(os.path.join(output_path, 'output.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
+    if output_path:
+        out_video = cv2.VideoWriter(os.path.join(output_path, 'output.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
     print('...Video size = {}x{}'.format(initial_h, initial_w))
 
     print('Looping through all the frame and doing inference')
@@ -83,13 +87,15 @@ def main(args):
         pose, image = pose_estimator.predict(face.copy(), image)
         eyes, eyes_center, image = landmark_detector.predict(face.copy(), coord, image)
         gaze, image = gaze_estimator.predict(eyes[0], eyes[1], pose, eyes_center, image)
-        out_video.write(image)
+        #if output_path:
+            #out_video.write(image)
         #TODO Uncomment the following line to control mouse movement with pyautogui
         #mouse_controller.move(gaze[0][0], gaze[0][1])
 
     print('Finished inference and successfully stored output to ', os.path.join(output_path, 'output_video.mp4'))
     print('Releasing resources')
-    out_video.release()
+    if output_path:
+        out_video.release()
     feed.close()
 
 if __name__ == '__main__':
@@ -112,8 +118,8 @@ if __name__ == '__main__':
                                         help='MKLDNN (CPU)-targeted custom layers.'
                                              'Absolute path to a shared library with the'
                                              'kernels impl.')
-    parser.add_argument('--output_path', default='/results',
-                                         help='Path to write output video (/results by default)')
+    parser.add_argument('--output_path', default='None',
+                                         help='Path to write output video (None by default means no intermediate results should be stored)')
 
     parser.add_argument('--mouse_precision', default='high', help='Mouse movement precision. Please pass high, low or medium')
     parser.add_argument('--mouse_speed', default='slow', help='Mouse movement speed. Please pass fast, slow or medium')

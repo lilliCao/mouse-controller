@@ -61,6 +61,7 @@ python3 main.py --model_face ~/openvino_models/ir/intel/face-detection-adas-bina
   #TODO Uncomment the following line to control mouse movement with pyautogui
   #mouse_controller.move(gaze[0][0], gaze[0][1])
   ```
+  * The intermediate results can be stored if the '--output_path' is given.
 
 ## Benchmarks
 *TODO:* Include the benchmark results of running your model on multiple hardwares and multiple model precisions. Your benchmarks can include: model loading time, input/output processing time, model inference time etc.
