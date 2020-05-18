@@ -22,7 +22,7 @@ class ModelGazeEstimation:
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
-            raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
+            raise ValueError("Could not Initialise the network for gaze estimation. Have you enterred the correct model path?")
 
     def load_model(self):
         '''

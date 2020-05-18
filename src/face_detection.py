@@ -23,7 +23,7 @@ class ModelFaceDetection:
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
-            raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
+            raise ValueError("Could not Initialise the network for face detection. Have you enterred the correct model path?")
 
         self.input_name=next(iter(self.model.inputs))
         self.input_shape=self.model.inputs[self.input_name].shape
@@ -76,11 +76,11 @@ class ModelFaceDetection:
             coord[3] = coord[3] * height
 
         # Detect more than 1 face -> don't process further
-        if len(coords)>1:
+        if len(coords)!=1:
             preprocessed_image = self.draw_output(coords, image)
             return None, (None,None), preprocessed_image
 
-        # convert np.float32 to int
+        # convert np.float32 to int in order to cut the face from image
         coords_float = coords[0].tolist()
         x,y,x_end,y_end = int(coords_float[0]), int(coords_float[1]),int(coords_float[2]),int(coords_float[3])
         face = image[y:y_end,x:x_end].copy()

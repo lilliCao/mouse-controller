@@ -22,7 +22,7 @@ class ModelLandmarksDetection:
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
-            raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
+            raise ValueError("Could not Initialise the network for landmarks detection. Have you enterred the correct model path?")
 
         self.input_name=next(iter(self.model.inputs))
         self.input_shape=self.model.inputs[self.input_name].shape
@@ -58,8 +58,8 @@ class ModelLandmarksDetection:
         :image: face to predict
         :coord: start coordinate of the detected face in the origin_image
         :origin_image: original image
-        :return: eyes: right and left eye
-                 landmarks[0:4]: center of right and left eye
+        :return: eyes: left and right eye
+                 landmarks[0:4]: center of left and right eye
                  preprocessed_image: image with detected landmarks
         '''
         preprocessed_input = self.preprocess_input(face)

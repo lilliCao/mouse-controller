@@ -13,7 +13,7 @@ SUPPORTED_VIDEO_FORMAT = [".mp4"]
 
 def support_video_format(video):
     '''
-    Check if the given input image format is supported
+    Check if the given input format is supported
     '''
     for v in SUPPORTED_VIDEO_FORMAT:
         if video.endswith(v):
@@ -31,26 +31,39 @@ def main(args):
     video_file=args.video
     output_path=args.output_path
     face_confidence=args.threshold_face_detection
+    precision=args.mouse_precision
+    speed=args.mouse_speed
 
     # initialize models and mouse controller
-    mouse_controller=MouseController('high', 'medium')
+    print('Initializing models and mouse controller')
+    if precision in ['high', 'low', 'medium'] and speed in ['fast', 'slow', 'medium']:
+        mouse_controller=MouseController(precision, speed)
+    else:
+        print('Please setup mouse precision and speed correctly!')
+        exit(1)
+
     face_detector= ModelFaceDetection(model_name=model_face, device=device, extensions=extensions, threshold=face_confidence)
     landmark_detector= ModelLandmarksDetection(model_name=model_landmark)
     pose_estimator=ModelHeadPoseEstimation(model_name=model_pose)
     gaze_estimator=ModelGazeEstimation(model_name=model_gaze)
 
     face_detector.load_model()
+    print ('...Successfully loading face detection model')
     landmark_detector.load_model()
+    print ('...Successfully loading landmarks detection model')
     pose_estimator.load_model()
+    print ('...Successfully loading head pose estimation model')
     gaze_estimator.load_model()
+    print ('...Successfully loading gaze estimation model')
 
     # get input
+    print('Getting input data')
     input_type = 'video'
     if video_file=='cam':
         input_type = 'cam'
     elif not support_video_format(video_file):
         print ('Unsupported input format! Please use only video file or cam as input')
-        exit(-1)
+        exit(1)
 
     feed=InputFeeder(input_type=input_type, input_file=video_file)
     feed.load_data()
@@ -58,20 +71,26 @@ def main(args):
     initial_h = int(feed.getCap().get(cv2.CAP_PROP_FRAME_HEIGHT))
     video_len = int(feed.getCap().get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(feed.getCap().get(cv2.CAP_PROP_FPS))
-    out_video = cv2.VideoWriter(os.path.join(output_path, 'output_video.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
-    print("Video size = {}x{}".format(initial_h, initial_w))
+    out_video = cv2.VideoWriter(os.path.join(output_path, 'output.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
+    print('...Video size = {}x{}'.format(initial_h, initial_w))
 
+    print('Looping through all the frame and doing inference')
     for batch in feed.next_batch():
         face, coord, image = face_detector.predict(batch)
+        if face is None:
+            print('...There might be no face or more than 1 face detected. Skip this frame')
+            continue
         pose, image = pose_estimator.predict(face.copy(), image)
         eyes, eyes_center, image = landmark_detector.predict(face.copy(), coord, image)
         gaze, image = gaze_estimator.predict(eyes[0], eyes[1], pose, eyes_center, image)
-        out_video.write(image.copy())
+        out_video.write(image)
+        #TODO Uncomment the following line to control mouse movement with pyautogui
         #mouse_controller.move(gaze[0][0], gaze[0][1])
 
+    print('Finished inference and successfully stored output to ', os.path.join(output_path, 'output_video.mp4'))
+    print('Releasing resources')
     out_video.release()
     feed.close()
-    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
@@ -96,6 +115,8 @@ if __name__ == '__main__':
     parser.add_argument('--output_path', default='/results',
                                          help='Path to write output video (/results by default)')
 
+    parser.add_argument('--mouse_precision', default='high', help='Mouse movement precision. Please pass high, low or medium')
+    parser.add_argument('--mouse_speed', default='slow', help='Mouse movement speed. Please pass fast, slow or medium')
     args=parser.parse_args()
 
     main(args)

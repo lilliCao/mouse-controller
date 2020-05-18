@@ -1,15 +1,66 @@
 # Computer Pointer Controller
 
-*TODO:* Write a short introduction to your project
+This project is aim to use gaze detection model to control the mouse pointer of the computer. To do so, it takes advantage of 4 models including
+  * [Face detection](https://docs.openvinotoolkit.org/latest/_models_intel_face_detection_adas_binary_0001_description_face_detection_adas_binary_0001.html)
+  * [Landmarks detection](https://docs.openvinotoolkit.org/latest/_models_intel_landmarks_regression_retail_0009_description_landmarks_regression_retail_0009.html)
+  * [Head pose estimation](https://docs.openvinotoolkit.org/latest/_models_intel_head_pose_estimation_adas_0001_description_head_pose_estimation_adas_0001.html )
+  * [Gaze estimation](https://docs.openvinotoolkit.org/latest/_models_intel_gaze_estimation_adas_0002_description_gaze_estimation_adas_0002.html )
+
 
 ## Project Set Up and Installation
-*TODO:* Explain the setup procedures to run your project. For instance, this can include your project directory structure, the models you need to download and where to place them etc. Also include details about how to install the dependencies your project requires.
+
+The project code is structured as following:
+
+**/bin** : contains the given input video *demo.mp4*, a shorter video of 10s cut from the demo.mp4 for testing *test.mp4*, a demo output video *demo_output.mp4*
+
+**/requirements.txt** : contains a list of all necessary dependencies to run this application
+
+**/src/** : contains 4 model classes (face_detection.py, facial_landmarks_detection.py, gaze_estimation.py and head_pose_estimation.py), the input_feeder.py (modified), mouse_controller.py (not modified) and the main.py.
+
+**README.md** : contains project summary
+
+The models themselves are downloaded corresponding to the link in the project description. In my case I put them into the default folder of ir of openvino which is **~/openvino_models/ir/intel/**
+
+The project is tested on my local machine with installed **openvino_2020.2.120** and within the virtual environment
+
+```console
+python3 -m venv mouse-controller-env
+source mouse-controller-env/bin/activate
+pip install -r requirements.txt
+```
 
 ## Demo
-*TODO:* Explain how to run a basic demo of your model.
+To run the application from the project directory:
+```console
+cd /src
+python3 main.py --model_face [face detection model path] \
+--model_landmark [landmarks detection model path] \
+--model_pose [head pose estimation model path] \
+--model_gaze [gaze estimation model path] \
+--video [video path] \
+--output_path [output path] \
+```
+
+There are some other parameters which can be passed such as --threshold_face_detection, --device,  --extensions, --mouse_precision or --mouse_speed. In the simple case, all default values are used!
+
+E.g.: Running the application with my project setup above on 'CPU', which results the **demo_output.mp4** in the /bin directory
+```console
+python3 main.py --model_face ~/openvino_models/ir/intel/face-detection-adas-binary-0001/FP32-INT1/face-detection-adas-binary-0001 \
+ --model_landmark ~/openvino_models/ir/intel/landmarks-regression-retail-0009/FP32/landmarks-regression-retail-0009 \
+ --model_pose ~/openvino_models/ir/intel/head-pose-estimation-adas-0001/FP32/head-pose-estimation-adas-0001 \
+ --model_gaze ~/openvino_models/ir/intel/gaze-estimation-adas-0002/FP32/gaze-estimation-adas-0002 \
+ --video ../bin/demo.mp4 --output_path ../bin/
+```
 
 ## Documentation
-*TODO:* Include any documentation that users might need to better understand your project code. For instance, this is a good place to explain the command line arguments that your project supports.
+
+  * Please refer to the main() in main.py to have an overview about possible arguments. There is a description about each parameter in 'help'
+  * The application uses synchronous inference. Face is detected from the ModelFaceDetection. If more or less than 1 face is detected, the frame is skipped for further process. Detected face is then passed to ModelLandmarksDetection and ModelHeadPoseEstimation to get the eyes and head pose, which are then passed to ModelGazeEstimation to have the final gaze_vector. (x,y) from gaze_vector is then passed to MouseController. The frame is drawn with the head pose (y,p,r), gaze vector (x,y,z), gaze vector as a arrow line from center eye, bounding box around face, eyes and point at nose and left and right corner of mouth (see /bin/demo_output.mp4). Each model class draws its own output to the frame in draw_output function
+  * As I noticed the movement of mouse isn't enough accurate, I temporally comment out the call of move() function in main
+  ```python
+  #TODO Uncomment the following line to control mouse movement with pyautogui
+  #mouse_controller.move(gaze[0][0], gaze[0][1])
+  ```
 
 ## Benchmarks
 *TODO:* Include the benchmark results of running your model on multiple hardwares and multiple model precisions. Your benchmarks can include: model loading time, input/output processing time, model inference time etc.

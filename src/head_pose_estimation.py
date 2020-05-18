@@ -21,7 +21,7 @@ class ModelHeadPoseEstimation:
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except Exception as e:
-            raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
+            raise ValueError("Could not Initialise the network for head pose estimation. Have you enterred the correct model path?")
 
         self.input_name=next(iter(self.model.inputs))
         self.input_shape=self.model.inputs[self.input_name].shape

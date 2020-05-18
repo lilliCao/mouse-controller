@@ -1,0 +1,12 @@
+#!/bin/sh
+'''exec' "/home/tali/TheHAW/Master/Talks and Workshops/Udacity_Intel_Edge_AI/Intel_Edge_AI_for_IoT/Project 3: Computer Pointer Controller/starter/mouse-controller-env/bin/python3" "$0" "$@"
+' '''
+# -*- coding: utf-8 -*-
+import re
+import sys
+
+from pip import main
+
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())
