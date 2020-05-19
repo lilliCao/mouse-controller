@@ -2,7 +2,7 @@
 
 This project is aim to use gaze detection model to control the mouse pointer of the computer. To do so, it takes advantage of 4 models including
   * [Face detection](https://docs.openvinotoolkit.org/latest/_models_intel_face_detection_adas_binary_0001_description_face_detection_adas_binary_0001.html)
-  * [Landmarks detection](https://docs.openvinotoolkit.org/latest/_models_intel_landmarks_regression_retail_0009_description_landmarks_regression_retail_0009.html)
+  * [Facial landmarks detection](https://docs.openvinotoolkit.org/latest/_models_intel_landmarks_regression_retail_0009_description_landmarks_regression_retail_0009.html)
   * [Head pose estimation](https://docs.openvinotoolkit.org/latest/_models_intel_head_pose_estimation_adas_0001_description_head_pose_estimation_adas_0001.html )
   * [Gaze estimation](https://docs.openvinotoolkit.org/latest/_models_intel_gaze_estimation_adas_0002_description_gaze_estimation_adas_0002.html )
 
@@ -13,11 +13,11 @@ The project code is structured as following:
 
 **/bin** : contains the given input video *demo.mp4*, a shorter video of 10s cut from the demo.mp4 for testing *test.mp4*
 
-**/result** : a demo output video *demo_output.mp4*, a demo command line output *cmd_output.jpg*
+**/result** : a demo output video *demo_output.mp4*, a demo command line output *cmdt.jpg*
 
 **/requirements.txt** : contains a list of all necessary dependencies to run this application
 
-**/src/** : contains 4 model classes (face_detection.py, facial_landmarks_detection.py, gaze_estimation.py and head_pose_estimation.py), the input_feeder.py (modified), mouse_controller.py (not modified) and the main.py.
+**/src/** : contains 4 model classes (face_detection.py, facial_landmarks_detection.py, gaze_estimation.py and head_pose_estimation.py), the input_feeder.py (modified), mouse_controller.py (modified) and the main.py.
 
 **README.md** : contains project summary
 
@@ -62,26 +62,48 @@ python3 main.py --model_face ~/openvino_models/ir/intel/face-detection-adas-bina
 
 ## Documentation
 
-  * Please refer to the main() in main.py to have an overview about possible arguments. There is a description about each parameter in 'help'
-  * The application uses synchronous inference. Face is detected from the ModelFaceDetection. If more or less than 1 face is detected, the frame is skipped for further process. Detected face is then passed to ModelLandmarksDetection and ModelHeadPoseEstimation to get the eyes and head pose, which are then passed to ModelGazeEstimation to have the final gaze_vector. (x,y) from gaze_vector is then passed to MouseController. The frame is drawn with the head pose (y,p,r), gaze vector (x,y,z), gaze vector as a arrow line from center eye, bounding box around face, eyes and point at nose and left and right corner of mouth (see /bin/demo_output.mp4). Each model class draws its own output to the frame in draw_output function
-  * As I noticed the movement of mouse isn't enough accurate and also not work so good if --show_frame flag is set, I temporally comment out the call of move() function in main. I also modified the MouseController to move mouse to center at initialization
-  ```python
-  #TODO Uncomment the following line to control mouse movement with pyautogui
-  #mouse_controller.move(gaze[0][0], gaze[0][1])
-  ```
-  * The intermediate results can be show if --show_frame is passed and can be stored if the '--output_path' is given.
+  * Possible command line arguments: Please refer to the main() in main.py to have an overview about possible arguments with its type and so on. There is a description about each parameter in 'help'. Here is a short description of those parameters. Highlighted means required parameters which have no default value which the user has to pass!
+      * **--model_face, --model_landmark, --model_pose, --model_gaze**: Path to the model structure and weights. E.g. If the model weights and structure are at /intel/model/model_x.bin and /intel/model/model_x.xml -> please pass /intel/model/model_x without .bin or .xml ending. The application will take care of getting those files correctly.
+      * --device: Device name as defined by intel. Default is CPU.
+      * --threshold_face_detection: As face detection model provides also a confidence at outpput, user can also pass the confidence here to filter the poor result. Default is 0.5.
+      * --extensions: Path to extension if needed. Note that the new version of openvino will automatic search for available extensions, otherwise user has to add it his/her own.
+      * **--video**: Path to video input or 'cam' if using camera. Image is not accepted as input.
+      * --output_path: Path to store output video. Default is None, mean no output is stored.
+      * --mouse_speed, --mouse_precision: Value of mouse speed and precision as defined in mouse_controller.py. ['slow', 'fast', 'medium'] and ['high', 'low', 'medium']
+      * --show_frame: Flag to show intermediate results
+  * Inferencing pipeline: The application uses synchronous inference. Face is detected from the ModelFaceDetection. If more or less than 1 face is detected, the frame is skipped for further process. Detected face is then passed to ModelLandmarksDetection and ModelHeadPoseEstimation to get the eyes and head pose, which are then passed to ModelGazeEstimation to have the final gaze_vector. (x,y) from gaze_vector is then passed to MouseController. The frame is drawn with the head pose (y,p,r), gaze vector (x,y,z), gaze vector as an arrow line from center eye with norm=25, bounding box around face, eyes and point at nose and left and right corner of mouth . Each model class draws its own output to the frame in draw_output function
+  ![Demo command line output](./result/output.jpg)
+  * Moving mouse: I modified the MouseController to move mouse to center at initialization since it's better to observe the mouse movement. I also noticed the movement of mouse isn't very accurate, especially with input from camera. One possible reason is each machine has its own setup which cv2 reads, in my case 640x480 even though the real screen size is 1280x720, which leads to the inaccurate mouse movement.
+  * Intermediate results: The intermediate results can be show if --show_frame is passed and can be stored if the '--output_path' is given. I also show intermediate results only 1/5frames (which is hard-coded) since the head movement used to happen in half second period and showing all frames does not bring so much more information.
+  * Running time report: For each model, there are 3 object variables of preprocessing_time, inference_time and postprocessing_time which track the time of preprocessing input, inference and proccessing output. It is accumulated for all frames of the video input. The results are printed out after finishing processing all frames.
 
 ## Benchmarks
-*TODO:* Include the benchmark results of running your model on multiple hardwares and multiple model precisions. Your benchmarks can include: model loading time, input/output processing time, model inference time etc.
+* I collected the 'running time report' as described above while running on video file /bin/test.mp4 (a 10s video split from the original video /bin/demo.mp4). The model running time report is collected independently on each other (see more in each model class). Therefore it makes more sense to compare time of each model with different precision. The comparison among combination of different models with different precision results from there as well.
+* Time is collected in ms. There are a slightly variable result each execution. Below is just one example.
+  * Face detection model has only 1 precision. Therefore there is no comparison for it
+  * Landmarks detection model
+
+|precision | loading time | inference | preprocessing | postprocessing |
+| --- | --- | --- | --- | --- |
+|FP32 |0.05 | 0.06462526321411133|0.007638692855834961 |0.009402036666870117 |
+|FP16 |**0.06** | **0.0641**8132781982422 |0.0077474117279052734|0.009356498718261719 |
+
+  * Head pose estimation model
+
+|precision | loading time | inference | preprocessing | postprocessing |
+| --- | --- | --- | --- | --- |
+|FP32 |0.07 |0.2566366195678711|0.013198137283325195|0.0461122989654541|
+|FP16 |**0.09**| **0.2550**8999824523926 |0.01315927505493164| 0.04545283317565918 |
+
+  * Gaze estimation model
+
+|precision | loading time | inference | preprocessing | postprocessing |
+| --- | --- | --- | --- | --- |
+|FP32 |0.09 |0.3130059242248535|0.007975578308105469|0.022005796432495117|
+|FP16 |**0.10**| **0.3123**7339973449707|0.007644176483154297|0.022309064865112305  
+|INT8 |**0.12**|** 0.2803**919315338135 |0.007623195648193359| 0.02169322967529297 |    
 
 ## Results
 *TODO:* Discuss the benchmark results and explain why you are getting the results you are getting. For instance, explain why there is difference in inference time for FP32, FP16 and INT8 models.
 
-## Stand Out Suggestions
-This is where you can provide information about the stand out suggestions that you have attempted.
-
-### Async Inference
-If you have used Async Inference in your code, benchmark the results and explain its effects on power and performance of your project.
-
-### Edge Cases
-There will be certain situations that will break your inference flow. For instance, lighting changes or multiple people in the frame. Explain some of the edge cases you encountered in your project and how you solved them to make your project more robust.
+The loading time of FP16 or INT8 are higher than FP32 for all models. It seems surprised at first sight since the FP16 or INT8 model size is smaller than FP32. But as CPU is optimized for FP32, it could be the reason while loading FP32 takes lower time than others on my CPU. The loading time will be different if running on e.g. GPU. The inference time of FP16 is lower than FP32 in all models. The inference time of INT8 is lower than FP16 in gaze estimation model. This means that the lower the precision is (the smaller the bits need to be used to store the weights), the faster is the inference, which also leads to higher fps.

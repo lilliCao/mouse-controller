@@ -116,13 +116,14 @@ def main(args):
         if output_path:
             out_video.write(image)
         if show_frame and (count % 5==0):
-            # show intermediate result every 20 frames
+            # show intermediate result every 5 frames
             cv2.imshow('frame'.format(count), image)
             # Press Q on keyboard to stop
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-        #TODO uncomment the following to see mouse controlled by pyautogui
-        #mouse_controller.move(gaze[0][0], gaze[0][1])
+        #TODO comment the following to deactivate mouse movement
+        #if want to focus more on the intermediate result!
+        mouse_controller.move(gaze[0][0], gaze[0][1])
     if output_path:
         print('Finished inference and successfully stored output to ', os.path.join(output_path, 'output_video.mp4'))
     else:
