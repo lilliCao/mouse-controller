@@ -1,6 +1,6 @@
 # Computer Pointer Controller
 
-This project is aim to use gaze detection model to control the mouse pointer of the computer. To do so, it takes advantage of 4 models including
+This project aims to use gaze detection model to control the mouse pointer of the computer. To do so, it takes advantage of 4 models including
   * [Face detection](https://docs.openvinotoolkit.org/latest/_models_intel_face_detection_adas_binary_0001_description_face_detection_adas_binary_0001.html)
   * [Facial landmarks detection](https://docs.openvinotoolkit.org/latest/_models_intel_landmarks_regression_retail_0009_description_landmarks_regression_retail_0009.html)
   * [Head pose estimation](https://docs.openvinotoolkit.org/latest/_models_intel_head_pose_estimation_adas_0001_description_head_pose_estimation_adas_0001.html )
