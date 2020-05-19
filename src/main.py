@@ -9,6 +9,7 @@ import cv2
 import os
 import numpy as np
 import time
+import logging
 
 SUPPORTED_VIDEO_FORMAT = [".mp4"]
 
@@ -54,6 +55,15 @@ def main(args):
     precision=args.mouse_precision
     speed=args.mouse_speed
     show_frame=args.show_frame
+    show_log=args.debug
+
+    # set up logging
+    if show_log:
+        logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s', level=logging.DEBUG)
+    else:
+        logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.ERROR)
+
+    logger = logging.getLogger('Main')
 
     # initialize models
     print('Initializing models')
@@ -79,9 +89,11 @@ def main(args):
     input_type = 'video'
     if video_file=='cam':
         input_type = 'cam'
+        logger.info('Using camera')
     elif not support_video_format(video_file):
         print ('Unsupported input format! Please use only video file or cam as input')
         exit(1)
+    logger.info('Using video input from ', video_file)
 
     feed=InputFeeder(input_type=input_type, input_file=video_file)
     feed.load_data()
@@ -106,15 +118,22 @@ def main(args):
     print('Looping through all the frame and doing inference')
     for batch in feed.next_batch():
         count = count + 1
-        print (count)
+        logger.info('Frame#{}'.format(count))
+        logger.info('Detecting face')
         face, coord, image = face_detector.predict(batch)
         if face is None:
             print('...There might be no face or more than 1 face detected. Skip this frame')
             continue
+        logger.info('Successfully detecting 1 face')
+        logger.info('Estimating head pose')
         pose, image = pose_estimator.predict(face.copy(), image)
+        logger.info('Detecting facial landmarks')
         eyes, eyes_center, image = landmark_detector.predict(face.copy(), coord, image)
+        logger.info('Estimating gaze')
         gaze, image = gaze_estimator.predict(eyes[0], eyes[1], pose, eyes_center, image)
+        logger.info('Gaze vector (x,y,z)= ({},{},{})'.format(gaze[0][0], gaze[0][1], gaze[0][2]))
         if output_path:
+            logger.info('Writing output frame to file')
             out_video.write(image)
         if show_frame and (count % 5==0):
             # show intermediate result every 5 frames
@@ -165,6 +184,8 @@ if __name__ == '__main__':
                                          help='Path to write output video (None by default means no intermediate results should be stored)')
     parser.add_argument('--show_frame', default=False, action='store_true',
                                          help='Flag to show intermediate results (False by default)')
+    parser.add_argument('--debug', default=False, action='store_true',
+                                   help='Flag to show logging (False by default)')
     parser.add_argument('--mouse_precision', default='high', help='Mouse movement precision. Please pass high, low or medium')
     parser.add_argument('--mouse_speed', default='medium', help='Mouse movement speed. Please pass fast, slow or medium')
     args=parser.parse_args()

@@ -8,17 +8,24 @@ will move the pointer.
 This class is provided to help get you started; you can choose whether you want to use it or create your own from scratch.
 '''
 import pyautogui
+import logging
 
 class MouseController:
     def __init__(self, precision, speed, center):
         precision_dict={'high':100, 'low':1000, 'medium':500}
         speed_dict={'fast':1, 'slow':10, 'medium':5}
 
+        self.logging = logging.getLogger(self.__class__.__name__)
+
         self.precision=precision_dict[precision]
         self.speed=speed_dict[speed]
 
+        self.logging.info('Mouse controller with {} precision and {} speed'.format(self.precision, self.speed))
+
         # move to center
+        self.logging.info('Moving mouse to center of screen (x,y) = ({},{})'.format(center[0], center[1]))
         pyautogui.moveTo(center[0], center[1])
 
     def move(self, x, y):
+        self.logging.info('Moving with gaze_vector of (x,y,_)=({},{},_)'.format(x,y))
         pyautogui.moveRel(x*self.precision, -1*y*self.precision, duration=self.speed)

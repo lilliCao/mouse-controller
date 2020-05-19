@@ -47,7 +47,7 @@ As new version of openvino will search for available extensions itself, I did no
 --extensions /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so
 ```
 
-There are some other parameters which can be passed such as --threshold_face_detection, --device,  --extensions, --mouse_precision or --mouse_speed. In the simple case, all default values are used! Use --show_frame to show intermediate result every 5 frames
+There are some other parameters which can be passed such as --threshold_face_detection, --device,  --extensions, --mouse_precision or --mouse_speed. In the simple case, all default values are used! Use --show_frame to show intermediate result every 5 frames. Use --debug flag to show more log data.
 
 E.g.: Running the application with my project setup above on 'CPU', which results the /bin/output_video.mp4. I then removed it to  **/result/demo_output.mp4**
 ```console
@@ -70,7 +70,8 @@ python3 main.py --model_face ~/openvino_models/ir/intel/face-detection-adas-bina
       * **--video**: Path to video input or 'cam' if using camera. Image is not accepted as input.
       * --output_path: Path to store output video. Default is None, mean no output is stored.
       * --mouse_speed, --mouse_precision: Value of mouse speed and precision as defined in mouse_controller.py. ['slow', 'fast', 'medium'] and ['high', 'low', 'medium']
-      * --show_frame: Flag to show intermediate results
+      * --show_frame: Flag to show intermediate results.
+      * --debug: Flag to show more detailed log event.
   * Inferencing pipeline: The application uses synchronous inference. Face is detected from the ModelFaceDetection. If more or less than 1 face is detected, the frame is skipped for further process. Detected face is then passed to ModelLandmarksDetection and ModelHeadPoseEstimation to get the eyes and head pose, which are then passed to ModelGazeEstimation to have the final gaze_vector. (x,y) from gaze_vector is then passed to MouseController. The frame is drawn with the head pose (y,p,r), gaze vector (x,y,z), gaze vector as an arrow line from center eye with norm=25, bounding box around face, eyes and point at nose and left and right corner of mouth . Each model class draws its own output to the frame in draw_output function
   ![Demo command line output](./result/output.jpg)
   * Moving mouse: I modified the MouseController to move mouse to center at initialization since it's better to observe the mouse movement. I also noticed the movement of mouse isn't very accurate, especially with input from camera. One possible reason is each machine has its own setup which cv2 reads, in my case 640x480 even though the real screen size is 1280x720, which leads to the inaccurate mouse movement. Also pyautogui.moveRel blocks 0.1s until response and as such blocks inference next frame. I did not dive deeper into that library and use a naive solution by calling move(x,y) from MouseController only every 10 frames, so that the inference is not blocked too much. You can also comment out the mouse movement if you want to focus more on the intermediate results

@@ -2,6 +2,7 @@ from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
 import time
+import logging
 
 class ModelGazeEstimation:
     '''
@@ -21,12 +22,17 @@ class ModelGazeEstimation:
         self.postprocessing_time=0
         self.inference_time=0
 
+        self.logging = logging.getLogger(self.__class__.__name__)
+
+        self.logging.info('Initialize plugin and network')
+
         self.plugin = IECore()
 
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except AttributeError:
             # old openvino has no method IECore,read_network()
+            self.logging.warn('IECore.read_network() does not exist. You probly has an old version of openvino. Use IENetwork constructor')
             self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network for gaze estimation. Have you enterred the correct model path?")
@@ -36,8 +42,11 @@ class ModelGazeEstimation:
         Loading model in core
         '''
         if self.extensions:
+            self.logging.info('Adding given extensions')
             self.plugin.add_extension(self.extensions,self.device)
+        self.logging.info('Checking unsupported layers')
         self.check_model()
+        self.logging.info('Loading network into core')
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
     def check_model(self):
@@ -64,10 +73,13 @@ class ModelGazeEstimation:
         :return: gaze: array of (x,y,z)
                  preprocessed_image: image with drawn gaze vector
         '''
+        self.logging.info('Start predicting gaze')
         start = time.time()
         left_eye_p, right_eye_p = self.preprocess_input(left_eye), self.preprocess_input(right_eye)
+        self.logging.info('Getting preprocessed input: Shape L={}, R={}'.format(left_eye_p.shape, right_eye_p.shape))
         self.preprocessing_time = self.preprocessing_time + (time.time() -start)
 
+        self.logging.info('Inferencing')
         start = time.time()
         self.exec_network.infer({'left_eye_image':left_eye_p, 'right_eye_image':right_eye_p, 'head_pose_angles': head_pose})
         self.inference_time = self.inference_time + (time.time() -start)
@@ -77,8 +89,11 @@ class ModelGazeEstimation:
 
         gaze = result.outputs['gaze_vector']
 
+        self.logging.info('Drawing output to image')
         preprocessed_image = self.draw_output(gaze, eyes_center, origin_image)
         self.postprocessing_time = self.postprocessing_time + (time.time() -start)
+
+        self.logging.info('Finish predicting')
 
         return gaze, preprocessed_image
 
@@ -103,6 +118,7 @@ class ModelGazeEstimation:
         cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,0,0), 2)
 
         norm = 200
+        self.logging.info('Drawing gaze vector with norm = {}'.format(norm))
         left_eye_center = eyes_center[0],eyes_center[1]
         left_gaze_point = (int(gaze[0]*norm+left_eye_center[0]), int(gaze[1]*norm*(-1)+left_eye_center[1]))
         right_eye_center = eyes_center[2],eyes_center[3]

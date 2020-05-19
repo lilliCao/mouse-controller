@@ -2,6 +2,7 @@ from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
 import time
+import logging
 
 class ModelFaceDetection:
     '''
@@ -22,12 +23,17 @@ class ModelFaceDetection:
         self.postprocessing_time=0
         self.inference_time=0
 
+        self.logging = logging.getLogger(self.__class__.__name__)
+
+        self.logging.info('Initialize plugin and network')
+
         self.plugin = IECore()
 
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except AttributeError:
             # old openvino has no method IECore,read_network()
+            self.logging.warn('IECore.read_network() does not exist. You probly has an old version of openvino. Use IENetwork constructor')
             self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network for face detection. Have you enterred the correct model path?")
@@ -37,13 +43,18 @@ class ModelFaceDetection:
         self.output_name=next(iter(self.model.outputs))
         self.output_shape=self.model.outputs[self.output_name].shape
 
+        self.logging.info('Getting input and ouput name and shape: I={}:{} O={}:{}'.format(self.input_name, self.input_shape, self.output_name, self.output_shape))
+
     def load_model(self):
         '''
         Loading model in core
         '''
         if self.extensions:
+            self.logging.info('Adding given extensions')
             self.plugin.add_extension(self.extensions,self.device)
+        self.logging.info('Checking unsupported layers')
         self.check_model()
+        self.logging.info('Loading network into core')
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
     def check_model(self):
@@ -68,10 +79,13 @@ class ModelFaceDetection:
                  x,y: start coordinate of cropped face
                  preprocessed_image: image with drawn bounding box
         '''
+        self.logging.info('Start predicting face')
         start = time.time()
         preprocessed_input = self.preprocess_input(image)
+        self.logging.info('Getting preprocessed input: Shape={}'.format(preprocessed_input.shape))
         self.preprocessing_time = self.preprocessing_time + (time.time() -start)
 
+        self.logging.info('Inferencing')
         start = time.time()
         self.exec_network.infer({self.input_name:preprocessed_input})
         self.inference_time = self.inference_time + (time.time() -start)
@@ -96,9 +110,11 @@ class ModelFaceDetection:
         coords_float = coords[0].tolist()
         x,y,x_end,y_end = int(coords_float[0]), int(coords_float[1]),int(coords_float[2]),int(coords_float[3])
         face = image[y:y_end,x:x_end].copy()
+        self.logging.info('Drawing output to image')
         preprocessed_image = self.draw_output(coords, image)
 
         self.postprocessing_time = self.postprocessing_time + (time.time() -start)
+        self.logging.info('Finish predicting')
         return face, (x,y), preprocessed_image
 
     def draw_output(self, coords, image):

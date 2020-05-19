@@ -2,6 +2,7 @@ from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
 import time
+import logging
 
 class ModelLandmarksDetection:
     '''
@@ -21,12 +22,17 @@ class ModelLandmarksDetection:
         self.postprocessing_time=0
         self.inference_time=0
 
+        self.logging = logging.getLogger(self.__class__.__name__)
+
+        self.logging.info('Initialize plugin and network')
+
         self.plugin = IECore()
 
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except AttributeError:
             # old openvino has no method IECore,read_network()
+            self.logging.warn('IECore.read_network() does not exist. You probly has an old version of openvino. Use IENetwork constructor')
             self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network for facial landmarks detection. Have you enterred the correct model path?")
@@ -36,13 +42,19 @@ class ModelLandmarksDetection:
         self.output_name=next(iter(self.model.outputs))
         self.output_shape=self.model.outputs[self.output_name].shape
 
+        self.logging.info('Getting input and ouput name and shape: I={}:{} O={}:{}'.format(self.input_name, self.input_shape, self.output_name, self.output_shape))
+
+
     def load_model(self):
         '''
         Loading model in core
         '''
         if self.extensions:
+            self.logging.info('Adding given extensions')
             self.plugin.add_extension(self.extensions,self.device)
+        self.logging.info('Checking unsupported layers')
         self.check_model()
+        self.logging.info('Loading network into core')
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
     def check_model(self):
@@ -69,10 +81,13 @@ class ModelLandmarksDetection:
                  landmarks[0:4]: center of left and right eye
                  preprocessed_image: image with detected landmarks
         '''
+        self.logging.info('Start predicting facial landmarks')
         start = time.time()
         preprocessed_input = self.preprocess_input(face)
+        self.logging.info('Getting preprocessed input: Shape='.format(preprocessed_input.shape))
         self.preprocessing_time = self.preprocessing_time + (time.time() -start)
 
+        self.logging.info('Inferencing')
         start = time.time()
         self.exec_network.infer({self.input_name:preprocessed_input})
         self.inference_time = self.inference_time + (time.time() -start)
@@ -88,8 +103,12 @@ class ModelLandmarksDetection:
             else:
                 landmarks[i] = (int) (landmarks[i]*height + coord[1])
 
+        self.logging.info('Drawing output to image')
         preprocessed_image, eyes = self.draw_output(landmarks, origin_image)
         self.postprocessing_time = self.postprocessing_time + (time.time() -start)
+
+        self.logging.info('Finish predicting')
+
         return eyes, landmarks[0:4], preprocessed_image
 
     def draw_output(self, output, image):
@@ -104,6 +123,7 @@ class ModelLandmarksDetection:
         (x_rightcorner, y_rightcorner) = landmarks[8:10]
 
         r=25
+        self.logging.info('Drawing eyes square r={}'.format(r))
 
         # in case the face is too near the border
         # which leads the the error if the modified coord is negative or bigger than width/height, set them to 0 or width/height corresponding
