@@ -80,7 +80,6 @@ class ModelHeadPoseEstimation:
                          result.outputs['angle_p_fc'][0],
                          result.outputs['angle_r_fc'][0]), axis=1)
 
-        #DEBUG draw (y,p,r) value in face
         preprocessed_image = self.draw_output(pose, origin_image)
         self.postprocessing_time = self.postprocessing_time + (time.time() -start)
 

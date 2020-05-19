@@ -1,4 +1,3 @@
-
 from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
@@ -28,9 +27,9 @@ class ModelLandmarksDetection:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except AttributeError:
             # old openvino has no method IECore,read_network()
-            self.model=IENetwork(self.model_structure, self.model_weights)      
+            self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
-            raise ValueError("Could not Initialise the network for landmarks detection. Have you enterred the correct model path?")
+            raise ValueError("Could not Initialise the network for facial landmarks detection. Have you enterred the correct model path?")
 
         self.input_name=next(iter(self.model.inputs))
         self.input_shape=self.model.inputs[self.input_name].shape
@@ -89,7 +88,6 @@ class ModelLandmarksDetection:
             else:
                 landmarks[i] = (int) (landmarks[i]*height + coord[1])
 
-        #DEBUG drawing landmarks
         preprocessed_image, eyes = self.draw_output(landmarks, origin_image)
         self.postprocessing_time = self.postprocessing_time + (time.time() -start)
         return eyes, landmarks[0:4], preprocessed_image

@@ -1,4 +1,3 @@
-
 from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
@@ -28,7 +27,7 @@ class ModelGazeEstimation:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except AttributeError:
             # old openvino has no method IECore,read_network()
-            self.model=IENetwork(self.model_structure, self.model_weights)      
+            self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network for gaze estimation. Have you enterred the correct model path?")
 
@@ -78,7 +77,6 @@ class ModelGazeEstimation:
 
         gaze = result.outputs['gaze_vector']
 
-        #DEBUG draw (x,y,z) value of gaze_vector
         preprocessed_image = self.draw_output(gaze, eyes_center, origin_image)
         self.postprocessing_time = self.postprocessing_time + (time.time() -start)
 

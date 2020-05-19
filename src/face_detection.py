@@ -1,4 +1,3 @@
-
 from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
@@ -29,7 +28,7 @@ class ModelFaceDetection:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
         except AttributeError:
             # old openvino has no method IECore,read_network()
-            self.model=IENetwork(self.model_structure, self.model_weights)    
+            self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network for face detection. Have you enterred the correct model path?")
 

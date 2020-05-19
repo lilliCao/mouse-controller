@@ -106,6 +106,7 @@ def main(args):
     print('Looping through all the frame and doing inference')
     for batch in feed.next_batch():
         count = count + 1
+        print (count)
         face, coord, image = face_detector.predict(batch)
         if face is None:
             print('...There might be no face or more than 1 face detected. Skip this frame')
@@ -123,7 +124,10 @@ def main(args):
                 break
         #TODO comment the following to deactivate mouse movement
         #if want to focus more on the intermediate result!
-        mouse_controller.move(gaze[0][0], gaze[0][1])
+        if count%10==0:
+            # pyautogui.moveRel blocking 0.1s -> blocking inference -> move only every 10 frames
+            mouse_controller.move(gaze[0][0], gaze[0][1])
+
     if output_path:
         print('Finished inference and successfully stored output to ', os.path.join(output_path, 'output_video.mp4'))
     else:
