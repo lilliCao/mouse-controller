@@ -1,6 +1,7 @@
 from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
+import time
 
 class ModelHeadPoseEstimation:
     '''
@@ -16,10 +17,17 @@ class ModelHeadPoseEstimation:
         self.device=device
         self.extensions=extensions
 
+        self.preprocessing_time=0
+        self.postprocessing_time=0
+        self.inference_time=0
+
         self.plugin = IECore()
 
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
+        except AttributeError:
+            # old openvino has no method IECore,read_network()
+            self.model=IENetwork(self.model_structure, self.model_weights)
         except Exception as e:
             raise ValueError("Could not Initialise the network for head pose estimation. Have you enterred the correct model path?")
 
@@ -30,9 +38,9 @@ class ModelHeadPoseEstimation:
         '''
         Loading model in core
         '''
-        self.check_model()
         if self.extensions:
             self.plugin.add_extension(self.extensions,self.device)
+        self.check_model()
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
     def check_model(self):
@@ -57,10 +65,15 @@ class ModelHeadPoseEstimation:
         :return: pose: array of (y,p,r)
                  preprocessed_image: image with drawn head pose
         '''
+        start = time.time()
         preprocessed_input = self.preprocess_input(face)
+        self.preprocessing_time = self.preprocessing_time + (time.time() -start)
 
+        start = time.time()
         self.exec_network.infer({self.input_name:preprocessed_input})
+        self.inference_time = self.inference_time + (time.time() -start)
 
+        start = time.time()
         result = self.exec_network.requests[0]
 
         pose = np.stack((result.outputs['angle_y_fc'][0],
@@ -69,6 +82,7 @@ class ModelHeadPoseEstimation:
 
         #DEBUG draw (y,p,r) value in face
         preprocessed_image = self.draw_output(pose, origin_image)
+        self.postprocessing_time = self.postprocessing_time + (time.time() -start)
 
         return pose, preprocessed_image
 
@@ -92,3 +106,6 @@ class ModelHeadPoseEstimation:
         prepo = prepo.transpose((2,0,1))
         prepo = prepo.reshape(1,c,h,w)
         return prepo
+
+    def get_time(self):
+        return self.preprocessing_time, self.inference_time, self.postprocessing_time

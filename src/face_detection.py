@@ -2,6 +2,7 @@
 from openvino.inference_engine import IENetwork, IECore
 import numpy as np
 import cv2
+import time
 
 class ModelFaceDetection:
     '''
@@ -18,10 +19,17 @@ class ModelFaceDetection:
         self.extensions=extensions
         self.threshold=threshold
 
+        self.preprocessing_time=0
+        self.postprocessing_time=0
+        self.inference_time=0
+
         self.plugin = IECore()
 
         try:
             self.model=self.plugin.read_network(self.model_structure, self.model_weights)
+        except AttributeError:
+            # old openvino has no method IECore,read_network()
+            self.model=IENetwork(self.model_structure, self.model_weights)    
         except Exception as e:
             raise ValueError("Could not Initialise the network for face detection. Have you enterred the correct model path?")
 
@@ -34,9 +42,9 @@ class ModelFaceDetection:
         '''
         Loading model in core
         '''
-        self.check_model()
         if self.extensions:
             self.plugin.add_extension(self.extensions,self.device)
+        self.check_model()
         self.exec_network = self.plugin.load_network(network=self.model, device_name=self.device)
 
     def check_model(self):
@@ -61,10 +69,15 @@ class ModelFaceDetection:
                  x,y: start coordinate of cropped face
                  preprocessed_image: image with drawn bounding box
         '''
+        start = time.time()
         preprocessed_input = self.preprocess_input(image)
+        self.preprocessing_time = self.preprocessing_time + (time.time() -start)
 
+        start = time.time()
         self.exec_network.infer({self.input_name:preprocessed_input})
+        self.inference_time = self.inference_time + (time.time() -start)
 
+        start = time.time()
         result = self.exec_network.requests[0]
 
         coords = self.preprocess_output(result.outputs[self.output_name])
@@ -86,6 +99,7 @@ class ModelFaceDetection:
         face = image[y:y_end,x:x_end].copy()
         preprocessed_image = self.draw_output(coords, image)
 
+        self.postprocessing_time = self.postprocessing_time + (time.time() -start)
         return face, (x,y), preprocessed_image
 
     def draw_output(self, coords, image):
@@ -119,3 +133,6 @@ class ModelFaceDetection:
             if confidence > self.threshold:
                 coords.append(box)
         return coords
+
+    def get_time(self):
+        return self.preprocessing_time, self.inference_time, self.postprocessing_time

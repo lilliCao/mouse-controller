@@ -11,7 +11,9 @@ This project is aim to use gaze detection model to control the mouse pointer of 
 
 The project code is structured as following:
 
-**/bin** : contains the given input video *demo.mp4*, a shorter video of 10s cut from the demo.mp4 for testing *test.mp4*, a demo output video *demo_output.mp4*
+**/bin** : contains the given input video *demo.mp4*, a shorter video of 10s cut from the demo.mp4 for testing *test.mp4*
+
+**/result** : a demo output video *demo_output.mp4*, a demo command line output *cmd_output.jpg*
 
 **/requirements.txt** : contains a list of all necessary dependencies to run this application
 
@@ -21,7 +23,7 @@ The project code is structured as following:
 
 The models themselves are downloaded corresponding to the link in the project description. In my case I put them into the default folder of ir of openvino which is **~/openvino_models/ir/intel/**
 
-The project is tested on my local machine with installed **openvino_2020.2.120** and within the virtual environment
+The project is tested on my local machine with installed **openvino_2020.2.120** and within the virtual environment.
 
 ```console
 python3 -m venv mouse-controller-env
@@ -40,10 +42,14 @@ python3 main.py --model_face [face detection model path] \
 --video [video path] \
 --output_path [output path] \
 ```
+As new version of openvino will search for available extensions itself, I did not have to add extensions my own. But if you use an old version, there will be some unsupported_layers reported, please add extensions by
+```console
+--extensions /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so
+```
 
-There are some other parameters which can be passed such as --threshold_face_detection, --device,  --extensions, --mouse_precision or --mouse_speed. In the simple case, all default values are used!
+There are some other parameters which can be passed such as --threshold_face_detection, --device,  --extensions, --mouse_precision or --mouse_speed. In the simple case, all default values are used! Use --show_frame to show intermediate result every 5 frames
 
-E.g.: Running the application with my project setup above on 'CPU', which results the **demo_output.mp4** in the /bin directory
+E.g.: Running the application with my project setup above on 'CPU', which results the /bin/output_video.mp4. I then removed it to  **/result/demo_output.mp4**
 ```console
 python3 main.py --model_face ~/openvino_models/ir/intel/face-detection-adas-binary-0001/FP32-INT1/face-detection-adas-binary-0001 \
  --model_landmark ~/openvino_models/ir/intel/landmarks-regression-retail-0009/FP32/landmarks-regression-retail-0009 \
@@ -52,16 +58,18 @@ python3 main.py --model_face ~/openvino_models/ir/intel/face-detection-adas-bina
  --video ../bin/demo.mp4 --output_path ../bin/
 ```
 
+![Demo command line output](./result/cmd.jpg)
+
 ## Documentation
 
   * Please refer to the main() in main.py to have an overview about possible arguments. There is a description about each parameter in 'help'
   * The application uses synchronous inference. Face is detected from the ModelFaceDetection. If more or less than 1 face is detected, the frame is skipped for further process. Detected face is then passed to ModelLandmarksDetection and ModelHeadPoseEstimation to get the eyes and head pose, which are then passed to ModelGazeEstimation to have the final gaze_vector. (x,y) from gaze_vector is then passed to MouseController. The frame is drawn with the head pose (y,p,r), gaze vector (x,y,z), gaze vector as a arrow line from center eye, bounding box around face, eyes and point at nose and left and right corner of mouth (see /bin/demo_output.mp4). Each model class draws its own output to the frame in draw_output function
-  * As I noticed the movement of mouse isn't enough accurate, I temporally comment out the call of move() function in main
+  * As I noticed the movement of mouse isn't enough accurate and also not work so good if --show_frame flag is set, I temporally comment out the call of move() function in main. I also modified the MouseController to move mouse to center at initialization
   ```python
   #TODO Uncomment the following line to control mouse movement with pyautogui
   #mouse_controller.move(gaze[0][0], gaze[0][1])
   ```
-  * The intermediate results can be stored if the '--output_path' is given.
+  * The intermediate results can be show if --show_frame is passed and can be stored if the '--output_path' is given.
 
 ## Benchmarks
 *TODO:* Include the benchmark results of running your model on multiple hardwares and multiple model precisions. Your benchmarks can include: model loading time, input/output processing time, model inference time etc.

@@ -8,6 +8,7 @@ import argparse
 import cv2
 import os
 import numpy as np
+import time
 
 SUPPORTED_VIDEO_FORMAT = [".mp4"]
 
@@ -19,6 +20,25 @@ def support_video_format(video):
         if video.endswith(v):
             return True
     return False
+
+def running_time_report(face_time,landmark_time,pose_time,gaze_time):
+    print('...Reporting running time')
+    print('......Face detection model')
+    print('.........Preprocessing   = {} ms'.format(face_time[0]))
+    print('.........Inference time  = {} ms'.format(face_time[1]))
+    print('.........Postprocessing  = {} ms'.format(face_time[2]))
+    print('......Landmarks detection model')
+    print('.........Preprocessing   = {} ms'.format(landmark_time[0]))
+    print('.........Inference time  = {} ms'.format(landmark_time[1]))
+    print('.........Postprocessing  = {} ms'.format(landmark_time[2]))
+    print('......Head pose estimation model')
+    print('.........Preprocessing   = {} ms'.format(pose_time[0]))
+    print('.........Inference time  = {} ms'.format(pose_time[1]))
+    print('.........Postprocessing  = {} ms'.format(pose_time[2]))
+    print('......Gaze estimation model')
+    print('.........Preprocessing   = {} ms'.format(gaze_time[0]))
+    print('.........Inference time  = {} ms'.format(gaze_time[1]))
+    print('.........Postprocessing  = {} ms'.format(gaze_time[2]))
 
 def main(args):
     # get all arguments
@@ -33,31 +53,26 @@ def main(args):
     face_confidence=args.threshold_face_detection
     precision=args.mouse_precision
     speed=args.mouse_speed
+    show_frame=args.show_frame
 
-    # initialize models and mouse controller
-    print('Initializing models and mouse controller')
-    if precision in ['high', 'low', 'medium'] and speed in ['fast', 'slow', 'medium']:
-        mouse_controller=MouseController(precision, speed)
-    else:
-        print('Please setup mouse precision and speed correctly!')
-        exit(1)
-
+    # initialize models
+    print('Initializing models')
     start = time.time()
     face_detector= ModelFaceDetection(model_name=model_face, device=device, extensions=extensions, threshold=face_confidence)
     face_detector.load_model()
-    print ('...Successfully loading face detection model in {:.2f}ms'.format(time.time() -start))
+    print ('...Successfully loading face detection model in {:.2f} ms'.format(time.time() -start))
     start = time.time()
     landmark_detector= ModelLandmarksDetection(model_name=model_landmark)
     landmark_detector.load_model()
-    print ('...Successfully loading landmarks detection model in {:.2f}ms'.format(time.time() -start))
+    print ('...Successfully loading landmarks detection model in {:.2f} ms'.format(time.time() -start))
     start = time.time()
     pose_estimator=ModelHeadPoseEstimation(model_name=model_pose)
     pose_estimator.load_model()
-    print ('...Successfully loading head pose estimation model in {:.2f}ms'.format(time.time() -start))
+    print ('...Successfully loading head pose estimation model in {:.2f} ms'.format(time.time() -start))
     start = time.time()
     gaze_estimator=ModelGazeEstimation(model_name=model_gaze)
     gaze_estimator.load_model()
-    print ('...Successfully loading gaze estimation model in {:.2f}s'.format(time.time() -start))
+    print ('...Successfully loading gaze estimation model in {:.2f} ms'.format(time.time() -start))
 
     # get input
     print('Getting input data')
@@ -75,11 +90,22 @@ def main(args):
     video_len = int(feed.getCap().get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(feed.getCap().get(cv2.CAP_PROP_FPS))
     if output_path:
-        out_video = cv2.VideoWriter(os.path.join(output_path, 'output.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
-    print('...Video size = {}x{}'.format(initial_h, initial_w))
+        out_video = cv2.VideoWriter(os.path.join(output_path, 'output_video.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
+    print('...Video size hxw= {}x{}'.format(initial_h, initial_w))
 
+    # mouse controller
+    print('Initializing mouse controller')
+    if precision in ['high', 'low', 'medium'] and speed in ['fast', 'slow', 'medium']:
+        center = (initial_w/2, initial_h/2)
+        mouse_controller=MouseController(precision, speed, center)
+    else:
+        print('Please setup mouse precision and speed correctly!')
+        exit(1)
+
+    count = 0
     print('Looping through all the frame and doing inference')
     for batch in feed.next_batch():
+        count = count + 1
         face, coord, image = face_detector.predict(batch)
         if face is None:
             print('...There might be no face or more than 1 face detected. Skip this frame')
@@ -87,16 +113,28 @@ def main(args):
         pose, image = pose_estimator.predict(face.copy(), image)
         eyes, eyes_center, image = landmark_detector.predict(face.copy(), coord, image)
         gaze, image = gaze_estimator.predict(eyes[0], eyes[1], pose, eyes_center, image)
-        #if output_path:
-            #out_video.write(image)
-        #TODO Uncomment the following line to control mouse movement with pyautogui
+        if output_path:
+            out_video.write(image)
+        if show_frame and (count % 5==0):
+            # show intermediate result every 20 frames
+            cv2.imshow('frame'.format(count), image)
+            # Press Q on keyboard to stop
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        #TODO uncomment the following to see mouse controlled by pyautogui
         #mouse_controller.move(gaze[0][0], gaze[0][1])
+    if output_path:
+        print('Finished inference and successfully stored output to ', os.path.join(output_path, 'output_video.mp4'))
+    else:
+        print('Finished inference')
 
-    print('Finished inference and successfully stored output to ', os.path.join(output_path, 'output_video.mp4'))
+    running_time_report(face_detector.get_time(), landmark_detector.get_time(), pose_estimator.get_time(), gaze_estimator.get_time())
+
     print('Releasing resources')
     if output_path:
         out_video.release()
     feed.close()
+    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
@@ -120,9 +158,10 @@ if __name__ == '__main__':
                                              'kernels impl.')
     parser.add_argument('--output_path', default='None',
                                          help='Path to write output video (None by default means no intermediate results should be stored)')
-
+    parser.add_argument('--show_frame', default=False, action='store_true',
+                                         help='Flag to show intermediate results (False by default)')
     parser.add_argument('--mouse_precision', default='high', help='Mouse movement precision. Please pass high, low or medium')
-    parser.add_argument('--mouse_speed', default='slow', help='Mouse movement speed. Please pass fast, slow or medium')
+    parser.add_argument('--mouse_speed', default='medium', help='Mouse movement speed. Please pass fast, slow or medium')
     args=parser.parse_args()
 
     main(args)
