@@ -13,7 +13,7 @@ The project code is structured as following:
 
 **/bin** : contains the given input video *demo.mp4*, a shorter video of 10s cut from the demo.mp4 for testing *test.mp4*
 
-**/result** : a demo output video *demo_output.mp4*, a demo command line output *cmd.jpg*, an output intermediate result **output.jpg**
+**/result** : a demo output video *demo_output.mp4*, a demo command line output *cmd.jpg*, an output intermediate result *output.jpg*
 
 **/requirements.txt** : contains a list of all necessary dependencies to run this application
 
