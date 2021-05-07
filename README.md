@@ -1,3 +1,4 @@
+# Intel® Edge AI for IoT Developers Nanodegree Program by [Udacity and Intel](https://www.udacity.com/course/intel-edge-ai-for-iot-developers-nanodegree--nd131)
 # Computer Pointer Controller
 
 This project aims to use gaze detection model to control the mouse pointer of the computer. To do so, it takes advantage of 4 models including
