@@ -1,5 +1,5 @@
 ipython==7.10.2
-numpy==1.18.2
+numpy==1.22.0
 Pillow==7.1.2
 requests==2.23.0
 virtualenv==15.1.0
